@@ -4,3 +4,5 @@ project/*.out
 *.zip
 project/project
 results
+.vscode/
+.DS_Store
