@@ -59,13 +59,13 @@ int main(int argc, char **argv)
   uint32_t last_ack = 0;
   uint8_t last_ack_count = 0;
   bool handshaked = false;
-  int server_seq = 0;
+  uint32_t server_seq = 0;
 
   // send a random SEQ A with SYN flag to the server
-  int client_seq = get_random_seq();
-  packet handshake = new_syn_packet(client_seq);
-  sendto(sockfd, &handshake, sizeof(handshake), 0, (struct sockaddr *)&server_addr,
-         sizeof(struct sockaddr_in));
+  uint32_t client_seq = get_random_seq();
+  packet *first_SYN = new_syn_packet(client_seq);
+  send_packet(sockfd, first_SYN, &server_addr);
+  // free(first_SYN);
 
   // Timer to resend the lowest seq if no new ACK in 1 second
   struct timeval last_sent_time;
@@ -86,8 +86,8 @@ int main(int argc, char **argv)
         client_seq += 1;
         server_seq = response.seq + 1;
 
-        packet ack = new_ack_packet(client_seq, server_seq);
-        send_packet(sockfd, &ack, &server_addr);
+        packet *ack = new_ack_packet(client_seq, server_seq);
+        send_packet(sockfd, ack, &server_addr);
 
         handshaked = true;
         printf("Handshake complete\n");
@@ -173,8 +173,8 @@ int main(int argc, char **argv)
       }
       else
       { // Otherwise, send an ACK with no data
-        packet ack = new_ack_packet(client_seq, server_seq);
-        send_packet(sockfd, &ack, &server_addr);
+        packet *ack = new_ack_packet(client_seq, server_seq);
+        send_packet(sockfd, ack, &server_addr);
       }
     }
 

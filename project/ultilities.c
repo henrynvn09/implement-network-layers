@@ -34,15 +34,25 @@ int get_random_seq()
 	return rand() % (INT16_MAX / 2);
 }
 
-packet new_syn_packet(int seq)
+packet *new_syn_packet(int seq)
 {
-	packet p = {0, seq, 0, SYN_FLAG, 0, {0}};
+	packet *p = malloc(sizeof(packet));
+	p->ack = 0;
+	p->seq = seq;
+	p->length = 0;
+	p->flags = SYN_FLAG;
+	p->unused = 0;
 	return p;
 }
 
-packet new_ack_packet(int seq, int ack)
+packet *new_ack_packet(int seq, int ack)
 {
-	packet p = {ack, seq, 0, ACK_FLAG, 0, {0}};
+	packet *p = malloc(sizeof(packet));
+	p->ack = ack;
+	p->seq = seq;
+	p->length = 0;
+	p->flags = ACK_FLAG;
+	p->unused = 0;
 	return p;
 }
 
