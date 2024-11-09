@@ -83,8 +83,7 @@ int main(int argc, char **argv)
   while (1)
   {
     packet p;
-    int bytes_recvd = recvfrom(sockfd, &p, sizeof(p), 0,
-                               (struct sockaddr *)&client_addr, &s);
+    int bytes_recvd = receive_packet(sockfd, &p, &client_addr, &s);
     if (!handshaked)
     {
       if (!first_SYN && bytes_recvd > 0)
