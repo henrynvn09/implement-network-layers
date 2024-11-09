@@ -22,13 +22,6 @@ typedef struct
 	char data[1024];
 } Receive_buffer;
 
-typedef struct
-{
-	uint32_t seq;
-	uint16_t length;
-	struct packet *pac;
-} Send_buffer;
-
 int get_random_seq()
 {
 	return rand() % (INT16_MAX / 2);
@@ -78,10 +71,10 @@ int receive_packet(int sockfd, packet *p, struct sockaddr_in *server_addr, sockl
 	return bytes_recvd;
 }
 
-int send_packet(int sockfd, packet *p, struct sockaddr_in *server_addr)
+int send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr)
 {
 	convert_packet_sending_endian(p);
-	sendto(sockfd, p, sizeof(*p), 0, (struct sockaddr *)server_addr, sizeof(struct sockaddr_in));
+	sendto(sockfd, p, sizeof(*p), 0, (struct sockaddr *)target_addr, sizeof(struct sockaddr_in));
 }
 
 void convert_packet_receiving_endian(packet *p)
@@ -150,12 +143,12 @@ void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r
 	memcpy(buffer[*r].data, p->payload, p->length);
 }
 
-void remove_acked_sent_buffer(uint32_t server_ack, Send_buffer *send_buffer, int *send_l, int *send_r)
+void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SIZE], int *send_l, int *send_r)
 {
 	// iterate through sent buffer to remove SEQ less than ACK
-	while (!is_empty(send_l, send_r) && send_buffer[*send_l].seq < server_ack)
+	while (!is_empty(send_l, send_r) && send_buffer[*send_l]->seq < server_ack)
 	{
-		free(send_buffer[*send_l].pac);
+		free(send_buffer[*send_l]);
 		increment_window(send_l);
 	}
 }

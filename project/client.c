@@ -50,7 +50,7 @@ int main(int argc, char **argv)
   char buffer[1024];
 
   // Initialize sending_buffer and receiving_buffer
-  Send_buffer send_buffer[WINDOW_SIZE];
+  packet *send_buffer[WINDOW_SIZE];
   uint32_t send_l = 0, send_r = 0;
 
   Receive_buffer receive_buffer[WINDOW_SIZE];
@@ -92,10 +92,8 @@ int main(int argc, char **argv)
         handshaked = true;
         printf("Handshake complete\n");
       }
+      continue;
     }
-    else
-      continue; // Handshake is done, continue to the next step
-
     //* ========== Now the connection is established ==========
 
     //* ===== send data from stdin if there is window is not full
@@ -104,17 +102,14 @@ int main(int argc, char **argv)
       int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
       if (bytes_read > 0)
       {
-        // save the data to the buffer
-        increment_window(&send_r);
-        send_buffer[send_r].seq = client_seq;
-        client_seq += bytes_read;
-        send_buffer[send_r].length = bytes_read;
-
         // send the data to the server TODO: there may need to mitigate ACK to here
-        packet *data_packet = new_data_packet(0, send_buffer[send_r].seq, send_buffer[send_r].length, 0, buffer);
+        packet *data_packet = new_data_packet(0, client_seq, bytes_read, 0, buffer);
         send_packet(sockfd, data_packet, &server_addr);
 
-        send_buffer[send_r].pac = data_packet;
+        // save the data to the buffer
+        increment_window(&send_r);
+        send_buffer[send_r] = data_packet;
+        client_seq += bytes_read;
       }
     }
 
@@ -126,15 +121,16 @@ int main(int argc, char **argv)
       // if the response is ACK, mark the data as received
       if (is_ack_packet(server_packet))
       {
-        remove_acked_sent_buffer(server_packet.ack, &send_buffer, &send_l, &send_r);
+        remove_acked_sent_buffer(server_packet.ack, send_buffer, &send_l, &send_r);
 
+        // if last 3 ACKs are the same, resend the lowest seq in the buffer
         if (last_ack == server_packet.ack)
         {
           last_ack_count++;
           if (last_ack_count == 3)
           {
             // resend the lowest seq in the buffer
-            send_packet(sockfd, &send_buffer[send_l], &server_addr);
+            send_packet(sockfd, send_buffer[send_l], &server_addr);
             last_ack_count = 0; // TODO: not sure 1 or 0
           }
         }
@@ -158,17 +154,15 @@ int main(int argc, char **argv)
         int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
         if (bytes_read > 0)
         {
+          // send the data to the server TODO: there may need to mitigate ACK to here
+          packet *data_packet = new_data_packet(server_seq, client_seq, bytes_read, ACK_FLAG, buffer);
+
+          send_packet(sockfd, data_packet, &server_addr);
+
           // save the data to the buffer
           increment_window(&send_r);
-          send_buffer[send_r].seq = client_seq;
+          send_buffer[send_r] = data_packet;
           client_seq += bytes_read;
-          send_buffer[send_r].length = bytes_read;
-
-          // send the data to the server TODO: there may need to mitigate ACK to here
-          packet *data_packet = new_data_packet(server_seq, send_buffer[send_r].seq, send_buffer[send_r].length, ACK_FLAG, buffer);
-          send_buffer[send_r].pac = data_packet;
-
-          send_packet(sockfd, &send_buffer[send_r].pac, &server_addr);
         }
       }
       else
@@ -184,7 +178,7 @@ int main(int argc, char **argv)
 
     if (current_time.tv_usec - last_sent_time.tv_usec >= 1e6)
     {
-      send_packet(sockfd, &send_buffer[send_l].pac, &server_addr);
+      send_packet(sockfd, send_buffer[send_l], &server_addr);
       gettimeofday(&last_sent_time, NULL);
     }
   }
