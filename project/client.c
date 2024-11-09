@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include "ultilities.c"
-#include "client.h"
 
 #define WINDOW_SIZE 21
 
@@ -51,10 +50,10 @@ int main(int argc, char **argv)
   char buffer[1024];
 
   // Initialize sending_buffer and receiving_buffer
-  Data_buffer send_buffer[WINDOW_SIZE];
+  Send_buffer send_buffer[WINDOW_SIZE];
   uint32_t send_l = 0, send_r = 0;
 
-  Data_buffer receive_buffer[WINDOW_SIZE];
+  Receive_buffer receive_buffer[WINDOW_SIZE];
   uint32_t receive_l = 0, receive_r = 0;
 
   uint32_t last_ack = 0;
@@ -107,14 +106,15 @@ int main(int argc, char **argv)
       {
         // save the data to the buffer
         increment_window(&send_r);
-        memcpy(send_buffer[send_r].data, buffer, bytes_read);
         send_buffer[send_r].seq = client_seq;
-        send_buffer[send_r].length = bytes_read;
         client_seq += bytes_read;
+        send_buffer[send_r].length = bytes_read;
 
         // send the data to the server TODO: there may need to mitigate ACK to here
-        packet data_packet = new_data_packet(0, send_buffer[send_r].seq, send_buffer[send_r].length, 0, send_buffer[send_r].data);
-        send_packet(sockfd, &data_packet, &server_addr);
+        packet *data_packet = new_data_packet(0, send_buffer[send_r].seq, send_buffer[send_r].length, 0, buffer);
+        send_packet(sockfd, data_packet, &server_addr);
+
+        send_buffer[send_r].pac = data_packet;
       }
     }
 
@@ -160,16 +160,15 @@ int main(int argc, char **argv)
         {
           // save the data to the buffer
           increment_window(&send_r);
-          memcpy(send_buffer[send_r].data, buffer, bytes_read);
           send_buffer[send_r].seq = client_seq;
-          send_buffer[send_r].length = bytes_read;
           client_seq += bytes_read;
+          send_buffer[send_r].length = bytes_read;
 
-          // send the data to the server #TODO: double check ACK
-          packet data_packet = new_data_packet(server_seq, send_buffer[send_r].seq,
-                                               send_buffer[send_r].length, ACK_FLAG, send_buffer[send_r].data);
+          // send the data to the server TODO: there may need to mitigate ACK to here
+          packet *data_packet = new_data_packet(server_seq, send_buffer[send_r].seq, send_buffer[send_r].length, ACK_FLAG, buffer);
+          send_buffer[send_r].pac = data_packet;
 
-          send_packet(sockfd, &data_packet, &server_addr);
+          send_packet(sockfd, &send_buffer[send_r].pac, &server_addr);
         }
       }
       else
@@ -185,7 +184,7 @@ int main(int argc, char **argv)
 
     if (current_time.tv_usec - last_sent_time.tv_usec >= 1e6)
     {
-      send_packet(sockfd, &send_buffer[send_l], &server_addr);
+      send_packet(sockfd, &send_buffer[send_l].pac, &server_addr);
       gettimeofday(&last_sent_time, NULL);
     }
   }

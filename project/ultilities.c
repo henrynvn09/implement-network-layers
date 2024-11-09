@@ -1,7 +1,5 @@
 
-#define MSS 1012		 // MSS = Maximum Segment Size (aka max length)
-#define MEMCPY_SIZE 1024 // size of the data to be copied
-#define MAX_SEQ 1000000	 // TODO: Maximum sequence number
+#define MSS 1012 // MSS = Maximum Segment Size (aka max length)
 #define SYN_FLAG 0b1
 #define ACK_FLAG 0b10
 #define WINDOW_SIZE 21
@@ -19,10 +17,17 @@ typedef struct
 
 typedef struct
 {
-	char data[1024];
 	uint32_t seq;
 	uint16_t length;
-} Data_buffer;
+	char data[1024];
+} Receive_buffer;
+
+typedef struct
+{
+	uint32_t seq;
+	uint16_t length;
+	struct packet *pac;
+} Send_buffer;
 
 int get_random_seq()
 {
@@ -41,10 +46,17 @@ packet new_ack_packet(int seq, int ack)
 	return p;
 }
 
-packet new_data_packet(uint32_t ack, uint32_t seq, uint16_t length, uint8_t flags, uint8_t *payload)
+packet *new_data_packet(uint32_t ack, uint32_t seq, uint16_t length, uint8_t flags, uint8_t *payload)
 {
-	packet p = {ack, seq, length, flags, 0, {0}};
-	memcpy(p.payload, payload, length);
+	packet *p = malloc(sizeof(packet));
+	p->ack = ack;
+	p->seq = seq;
+	p->length = length;
+	p->flags = flags;
+	p->unused = 0;
+	memset(p->payload, 0, MSS);
+	memcpy(p->payload, payload, length);
+
 	return p;
 }
 
@@ -91,7 +103,7 @@ void increment_window(int *ptr)
 	*ptr = (*ptr + 1) % WINDOW_SIZE;
 }
 
-void add_packet_to_data_buffer(packet *p, Data_buffer *buffer, int *l, int *r)
+void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r)
 {
 	if (is_full(l, r))
 	{
@@ -109,7 +121,7 @@ void add_packet_to_data_buffer(packet *p, Data_buffer *buffer, int *l, int *r)
 			// insert the packet to the buffer
 			for (int j = *r; j != i; j = (j - 1 + WINDOW_SIZE) % WINDOW_SIZE)
 			{
-				memcpy(&buffer[j], &buffer[(j - 1 + WINDOW_SIZE) % WINDOW_SIZE], sizeof(Data_buffer));
+				memcpy(&buffer[j], &buffer[(j - 1 + WINDOW_SIZE) % WINDOW_SIZE], sizeof(Receive_buffer));
 			}
 			increment_window(r);
 
@@ -128,16 +140,17 @@ void add_packet_to_data_buffer(packet *p, Data_buffer *buffer, int *l, int *r)
 	memcpy(buffer[*r].data, p->payload, p->length);
 }
 
-void remove_acked_sent_buffer(uint32_t server_ack, Data_buffer *send_buffer, int *send_l, int *send_r)
+void remove_acked_sent_buffer(uint32_t server_ack, Send_buffer *send_buffer, int *send_l, int *send_r)
 {
 	// iterate through sent buffer to remove SEQ less than ACK
 	while (!is_empty(send_l, send_r) && send_buffer[*send_l].seq < server_ack)
 	{
+		free(send_buffer[*send_l].pac);
 		increment_window(send_l);
 	}
 }
 
-void print_data_buffer(Data_buffer *buffer, int *l, int *r, int *expected_seq)
+void print_data_buffer(Receive_buffer *buffer, int *l, int *r, int *expected_seq)
 {
 	if (is_full(l, r))
 	{

@@ -5,11 +5,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <unistd.h>
+#include <stdbool.h>
 #include <sys/time.h>
 #include "ultilities.h"
 
-int main(int argc, char **argv) {
-  if (argc < 2) {
+int main(int argc, char **argv)
+{
+  if (argc < 2)
+  {
     fprintf(stderr, "Usage: server <port>\n");
     exit(1);
   }
@@ -55,7 +59,8 @@ int main(int argc, char **argv) {
   int client_connected = 0;
 
   // Listen loop
-  while (1) {
+  while (1)
+  {
     // Receive from socket
     int bytes_recvd = recvfrom(sockfd, &buffer, sizeof(buffer), 0,
                                (struct sockaddr *)&client_addr, &s);
@@ -65,7 +70,8 @@ int main(int argc, char **argv) {
         1; // At this point, the client has connected and sent data
 
     // Data available to write
-    if (bytes_recvd > 0) {
+    if (bytes_recvd > 0)
+    {
       write(STDOUT_FILENO, buffer, bytes_recvd);
     }
 
@@ -73,7 +79,8 @@ int main(int argc, char **argv) {
     int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
 
     // Data available to send from stdin
-    if (bytes_read > 0) {
+    if (bytes_read > 0)
+    {
       sendto(sockfd, &buffer, bytes_read, 0, (struct sockaddr *)&client_addr,
              sizeof(struct sockaddr_in));
     }
