@@ -1,26 +1,4 @@
-
-#define MSS 1012 // MSS = Maximum Segment Size (aka max length)
-#define SYN_FLAG 0b1
-#define ACK_FLAG 0b10
-#define WINDOW_SIZE 21
-// #include "ultilities.h"
-
-typedef struct
-{
-	uint32_t ack;	 // next byte that the receiver is expecting
-	uint32_t seq;	 // represents the first byte number in this packet
-	uint16_t length; // length of the payload in bytes
-	uint8_t flags;	 // flag 0b(ACK)(SYN)
-	uint8_t unused;
-	uint8_t payload[MSS];
-} packet;
-
-typedef struct
-{
-	uint32_t seq;
-	uint16_t length;
-	char data[1024];
-} Receive_buffer;
+#include "ultilities.h"
 
 int get_random_seq()
 {
@@ -71,7 +49,7 @@ int receive_packet(int sockfd, packet *p, struct sockaddr_in *server_addr, sockl
 	return bytes_recvd;
 }
 
-int send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr)
+void send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr)
 {
 	convert_packet_sending_endian(p);
 	sendto(sockfd, p, sizeof(*p), 0, (struct sockaddr *)target_addr, sizeof(struct sockaddr_in));
@@ -153,7 +131,7 @@ void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SI
 	}
 }
 
-void print_data_buffer(Receive_buffer *buffer, int *l, int *r, int *expected_seq)
+void print_data_buffer(Receive_buffer *buffer, int *l, int *r, uint32_t *expected_seq)
 {
 	if (is_full(l, r))
 	{

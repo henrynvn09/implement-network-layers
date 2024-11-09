@@ -47,14 +47,14 @@ int main(int argc, char **argv)
   int PORT = atoi(argv[2]);
   server_addr.sin_port = htons(PORT); // Big endian
   socklen_t s = sizeof(struct sockaddr_in);
-  char buffer[1024];
+  uint8_t buffer[1024];
 
   // Initialize sending_buffer and receiving_buffer
   packet *send_buffer[WINDOW_SIZE];
-  uint32_t send_l = 0, send_r = 0;
+  int send_l = 0, send_r = 0;
 
   Receive_buffer receive_buffer[WINDOW_SIZE];
-  uint32_t receive_l = 0, receive_r = 0;
+  int receive_l = 0, receive_r = 0;
 
   uint32_t last_ack = 0;
   uint8_t last_ack_count = 0;
@@ -145,8 +145,8 @@ int main(int argc, char **argv)
 
       // place the data in the receive buffer,
       // if the receive seq is in the expected window print it to the stdout
-      add_packet_to_data_buffer(&server_packet, &receive_buffer, &receive_l, &receive_r);
-      print_data_buffer(&receive_buffer, &receive_l, &receive_r, &server_seq);
+      add_packet_to_data_buffer(&server_packet, receive_buffer, &receive_l, &receive_r);
+      print_data_buffer(receive_buffer, &receive_l, &receive_r, &server_seq);
 
       // send ACK with data to the server if send_buffer is not full
       if (!is_full(&send_l, &send_r))
