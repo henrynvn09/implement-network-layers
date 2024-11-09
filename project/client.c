@@ -1,83 +1,67 @@
-#include <sys/socket.h>
 #include <arpa/inet.h>
-#include <string.h>
-#include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-int main(int argc, char **argv)
-{
-    if (argc != 3)
-        return 1;
+int main(int argc, char **argv) {
+  if (argc < 3) {
+    fprintf(stderr, "Usage: client <hostname> <port> \n");
+    exit(1);
+  }
 
-    char *hostname = argv[1];
-    if (strcmp("localhost", hostname) == 0)
-        hostname = "127.0.0.1";
+  /* Create sockets */
+  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  // use IPv4  use UDP
+  // Error if socket could not be created
+  if (sockfd < 0)
+    return errno;
 
-    int port = atoi(argv[2]);
+  // Set socket for nonblocking
+  int flags = fcntl(sockfd, F_GETFL);
+  flags |= O_NONBLOCK;
+  fcntl(sockfd, F_SETFL, flags);
 
-    /* 1. Create socket */
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    // use IPv4  use UDP
+  // Setup stdin for nonblocking
+  flags = fcntl(STDIN_FILENO, F_GETFL);
+  flags |= O_NONBLOCK;
+  fcntl(STDIN_FILENO, F_SETFL, flags);
 
-    /* 2. Construct server address */
-    struct sockaddr_in serveraddr;
-    serveraddr.sin_family = AF_INET; // use IPv4
-    serveraddr.sin_addr.s_addr = inet_addr(hostname);
-    // Set sending port
-    // int SEND_PORT = 8080;
-    serveraddr.sin_port = htons(port); // Big endian
+  /* Construct server address */
+  struct sockaddr_in server_addr;
+  server_addr.sin_family = AF_INET; // use IPv4
+  // Only supports localhost as a hostname, but that's all we'll test on
+  char *addr = strcmp(argv[1], "localhost") == 0 ? "127.0.0.1" : argv[1];
+  server_addr.sin_addr.s_addr = inet_addr(addr);
+  // Set sending port
+  int PORT = atoi(argv[2]);
+  server_addr.sin_port = htons(PORT); // Big endian
+  socklen_t s = sizeof(struct sockaddr_in);
+  char buffer[1024];
 
-    int BUF_SIZE = 1024;
-    /* 3. Send data to server */
-    char client_buf[BUF_SIZE];
-    // int did_send = sendto(sockfd, client_buf, strlen(client_buf),
-    //                    // socket  send data   how much to send
-    //                       0, (struct sockaddr*) &serveraddr,
-    //                    // flags   where to send
-    //                       sizeof(serveraddr));
-    // if (did_send < 0) return errno;
+  // Listen loop
+  while (1) {
+    // Receive from socket
+    int bytes_recvd = recvfrom(sockfd, &buffer, sizeof(buffer), 0,
+                               (struct sockaddr *)&server_addr, &s);
 
-    /* 4. Create buffer to store incoming data */
-    char server_buf[BUF_SIZE];
-    socklen_t serversize = sizeof(socklen_t); // Temp buffer for recvfrom API
-
-    // socket non-blocking
-    int out_flags = fcntl(sockfd, F_GETFL) | O_NONBLOCK;
-    fcntl(sockfd, F_SETFL, out_flags);
-    // standard input non-blocking
-    int inp_flags = fcntl(0, F_GETFL) | O_NONBLOCK;
-    fcntl(sockfd, F_SETFL, inp_flags);
-
-    while (1)
-    {
-        /* 5. Listen for response from server */
-        int bytes_recvd = recvfrom(sockfd, server_buf, BUF_SIZE,
-                                   // socket  store data  how much
-                                   0, (struct sockaddr *)&serveraddr,
-                                   &serversize);
-        // if data has been received
-        if (bytes_recvd > 0)
-        {
-            write(1, server_buf, bytes_recvd);
-        }
-
-        int inp_size = read(0, client_buf, BUF_SIZE);
-        /* 3. send request to the server if receive input*/
-        if (inp_size > 0)
-        {
-            int did_send = sendto(sockfd, client_buf, inp_size,
-                                  // socket  send data   how much to send
-                                  0, (struct sockaddr *)&serveraddr,
-                                  // flags   where to send
-                                  sizeof(serveraddr));
-            if (did_send < 0)
-                return errno;
-        }
+    // Data available to write
+    if (bytes_recvd > 0) {
+      write(STDOUT_FILENO, buffer, bytes_recvd);
     }
 
-    /* 6. You're done! Terminate the connection */
-    close(sockfd);
-    return 0;
+    // Read from stdin
+    int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
+
+    // Data available to send from stdin
+    if (bytes_read > 0) {
+      sendto(sockfd, &buffer, bytes_read, 0, (struct sockaddr *)&server_addr,
+             sizeof(struct sockaddr_in));
+    }
+  }
+
+  return 0;
 }
