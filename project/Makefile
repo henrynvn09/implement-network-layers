@@ -15,5 +15,5 @@ clean:
 zip: clean
 	rm -f project.zip
 	mkdir -p project
-	cp server.c client.c Makefile project
+	cp server.c client.c ultilities.c ultilities.h Makefile project
 	zip project0.zip project/*

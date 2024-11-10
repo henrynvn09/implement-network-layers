@@ -6,8 +6,6 @@
 #define RTOS 2
 #define DUPA 3
 
-uint32_t sent_counter = 0;
-
 static inline void print_diag(packet *pkt, int diag)
 {
 	switch (diag)
@@ -16,8 +14,7 @@ static inline void print_diag(packet *pkt, int diag)
 		fprintf(stderr, "- RECV");
 		break;
 	case SEND:
-		sent_counter++;
-		fprintf(stderr, "%u - SEND", sent_counter);
+		fprintf(stderr, "- SEND");
 		// fprintf(stderr, " - SEND");
 		break;
 	case RTOS:
@@ -54,7 +51,10 @@ static inline void print_diag(packet *pkt, int diag)
 
 uint32_t get_random_seq()
 {
-	return rand() % (INT16_MAX / 2);
+	int r;
+	srand(time(NULL));
+	r = rand() % (INT64_MAX / 2);
+	return r;
 }
 
 packet *new_syn_packet(uint32_t seq)
@@ -111,6 +111,11 @@ void send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr)
 {
 	if (p == NULL)
 		return;
+	if (p->length > 0 && rand() % 100 < 10)
+	{
+		fprintf(stderr, "========== Dropping packet =========\n");
+		return;
+	}
 	convert_packet_sending_endian(p);
 
 	print_diag(p, SEND);
@@ -147,8 +152,13 @@ void increment_window(int *ptr)
 	*ptr = (*ptr + 1) % WINDOW_SIZE;
 }
 
-void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer)
+void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer, uint32_t expected_seq)
 {
+	if (p->seq < expected_seq)
+	{
+		fprintf(stderr, "\t\tPacket already received\n");
+		return;
+	}
 	Receive_buffer *new_buffer = malloc(sizeof(Receive_buffer));
 	new_buffer->seq = p->seq;
 	new_buffer->length = p->length;
@@ -201,11 +211,11 @@ void output_data_buffer(Receive_buffer **buffer, uint32_t *expected_seq)
 {
 	while ((*buffer) && (*buffer)->seq == *expected_seq)
 	{
-		fprintf(stderr, "popping %u\n", (*buffer)->seq);
+		// fprintf(stderr, "popping %u\n", (*buffer)->seq);
 		write(STDOUT_FILENO, (*buffer)->data, (*buffer)->length);
-		*expected_seq += (*buffer)->length;
+		(*expected_seq) += (*buffer)->length;
 		Receive_buffer *temp = (*buffer);
-		*buffer = (*buffer)->next;
+		(*buffer) = (*buffer)->next;
 		free(temp);
 		temp = NULL;
 	}
@@ -222,7 +232,7 @@ bool is_empty(int *l, int *r)
 
 void debug_receive_buffer(Receive_buffer **buffer)
 {
-	fprintf(stderr, "-%u Buffer: ", (*buffer)->seq);
+	fprintf(stderr, "\t++Buffer: ");
 	Receive_buffer *head = *buffer;
 	while (head != NULL)
 	{

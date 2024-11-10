@@ -72,6 +72,7 @@ int main(int argc, char **argv)
 
   // Initialize the server_seq
   uint32_t server_seq = get_random_seq();
+  fprintf(stderr, "Server SEQ: %u\n", server_seq);
   uint32_t client_seq = 0;
 
   // Timer to resend the lowest seq if no new ACK in 1 second
@@ -113,6 +114,19 @@ int main(int argc, char **argv)
 
     //* ========== Now the connection is established ==========
 
+    //* ==== retransmit the lowest seq in the buffer if no new ACK in 1 second
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    struct timeval time_diff;
+    timersub(&current_time, &last_ack_time, &time_diff);
+
+    if (time_diff.tv_sec > 1 || time_diff.tv_usec >= 1e6)
+    {
+      if (!is_empty(&send_l, &send_r))
+        send_packet(sockfd, send_buffer[send_l], &client_addr);
+      gettimeofday(&last_ack_time, NULL);
+    }
+
     //* ==== receive data from the client
     if (bytes_recvd > 0)
     {
@@ -129,10 +143,10 @@ int main(int argc, char **argv)
           if (last_ack_count == 3)
           {
             // resend the lowest seq in the buffer
-
+            fprintf(stderr, "\t\t+resend the lowest seq in the buffer\n");
             if (!is_empty(&send_l, &send_r))
               send_packet(sockfd, send_buffer[send_l], &client_addr);
-            last_ack_count = 0; // TODO: not sure 1 or 0
+            last_ack_count = 1; // TODO: not sure 1 or 0
           }
         }
         else
@@ -141,6 +155,7 @@ int main(int argc, char **argv)
           last_ack_count = 1;
         }
       }
+      debug_receive_buffer(&receive_buffer);
 
       if (p.length == 0)
         continue;
@@ -149,8 +164,7 @@ int main(int argc, char **argv)
 
       // place the data in the receive buffer,
       // if the receive seq is in the expected window print it to the stdout
-      add_packet_to_receive_buffer(&p, &receive_buffer);
-      debug_receive_buffer(&receive_buffer);
+      add_packet_to_receive_buffer(&p, &receive_buffer, client_seq);
       output_data_buffer(&receive_buffer, &client_seq);
 
       // send ACK with data to the client if send_buffer is not full
@@ -166,6 +180,8 @@ int main(int argc, char **argv)
 
           // save the data to the buffer
           send_buffer[send_r] = data_packet;
+          send_buffer[send_r]->ack = 0;
+          send_buffer[send_r]->flags = 0;
           server_seq += bytes_read;
           increment_window(&send_r);
         }
@@ -200,19 +216,6 @@ int main(int argc, char **argv)
         server_seq += bytes_read;
         increment_window(&send_r);
       }
-    }
-
-    //* ==== retransmit the lowest seq in the buffer if no new ACK in 1 second
-    struct timeval current_time;
-    gettimeofday(&current_time, NULL);
-    struct timeval time_diff;
-    timersub(&current_time, &last_ack_time, &time_diff);
-
-    if (time_diff.tv_usec >= 1e6)
-    {
-      if (!is_empty(&send_l, &send_r))
-        send_packet(sockfd, send_buffer[send_l], &client_addr);
-      gettimeofday(&last_ack_time, NULL);
     }
   }
 

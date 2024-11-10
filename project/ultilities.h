@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <time.h>
 
 #define MSS 1012 // MSS = Maximum Segment Size (aka max length)
 #define SYN_FLAG 0b1
@@ -47,7 +48,7 @@ void convert_packet_sending_endian(packet *p);
 bool is_syn_packet(packet *p);
 bool is_ack_packet(packet *p);
 void increment_window(int *ptr);
-void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer);
+void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer, uint32_t expected_seq);
 void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SIZE], int *send_l, int *send_r);
 void output_data_buffer(Receive_buffer **buffer, uint32_t *expected_seq);
 bool is_full(int *l, int *r);

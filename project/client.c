@@ -96,6 +96,18 @@ int main(int argc, char **argv)
       continue;
     }
     //* ========== Now the connection is established ==========
+    //* ==== retransmit the lowest seq in the buffer if no new ACK in 1 second
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    struct timeval time_diff;
+    timersub(&current_time, &last_ack_time, &time_diff);
+
+    if (time_diff.tv_sec >= 1 || time_diff.tv_usec >= 1e6)
+    {
+      if (!is_empty(&send_l, &send_r))
+        send_packet(sockfd, send_buffer[send_l], &server_addr);
+      gettimeofday(&last_ack_time, NULL);
+    }
 
     //* ==== receive data from the server
     packet server_packet;
@@ -126,6 +138,7 @@ int main(int argc, char **argv)
           last_ack_count = 1;
         }
       }
+      debug_receive_buffer(&receive_buffer);
 
       if (server_packet.length == 0)
         continue;
@@ -134,13 +147,13 @@ int main(int argc, char **argv)
 
       // place the data in the receive buffer,
       // if the receive seq is in the expected window print it to the stdout
-      add_packet_to_receive_buffer(&server_packet, &receive_buffer);
+      add_packet_to_receive_buffer(&server_packet, &receive_buffer, server_seq);
       output_data_buffer(&receive_buffer, &server_seq);
 
       // send ACK with data to the server if send_buffer is not full
       if (!is_full(&send_l, &send_r))
       {
-        fprintf(stderr, "send data to the server with ack\n");
+        // fprintf(stderr, "send data to the server with ack\n");
         int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
         if (bytes_read > 0)
         {
@@ -151,19 +164,21 @@ int main(int argc, char **argv)
 
           // save the data to the buffer
           send_buffer[send_r] = data_packet;
+          send_buffer[send_r]->ack = 0;
+          send_buffer[send_r]->flags = 0;
           client_seq += bytes_read;
           increment_window(&send_r);
         }
         else
         { // Otherwise, send an ACK with no data
-          fprintf(stderr, "send ack to the server with no data\n");
+          // fprintf(stderr, "send ack to the server with no data\n");
           packet *ack = new_ack_packet(client_seq, server_seq);
           send_packet(sockfd, ack, &server_addr);
         }
       }
       else
       { // Otherwise, send an ACK with no data
-        fprintf(stderr, "send ack to the server with no data\n");
+        // fprintf(stderr, "send ack to the server with no data\n");
         packet *ack = new_ack_packet(client_seq, server_seq);
         send_packet(sockfd, ack, &server_addr);
       }
@@ -184,18 +199,6 @@ int main(int argc, char **argv)
         client_seq += bytes_read;
         increment_window(&send_r);
       }
-    }
-    //* ==== retransmit the lowest seq in the buffer if no new ACK in 1 second
-    struct timeval current_time;
-    gettimeofday(&current_time, NULL);
-    struct timeval time_diff;
-    timersub(&current_time, &last_ack_time, &time_diff);
-
-    if (time_diff.tv_usec >= 1e6)
-    {
-      if (!is_empty(&send_l, &send_r))
-        send_packet(sockfd, send_buffer[send_l], &server_addr);
-      gettimeofday(&last_ack_time, NULL);
     }
   }
 
