@@ -71,7 +71,7 @@ int main(int argc, char **argv)
   bool handshaked = false;
 
   // Initialize the server_seq
-  uint32_t server_seq = get_random_seq();
+  uint32_t server_seq = 789;
   fprintf(stderr, "Server SEQ: %u\n", server_seq);
   uint32_t client_seq = 0;
 
@@ -164,6 +164,7 @@ int main(int argc, char **argv)
 
       // place the data in the receive buffer,
       // if the receive seq is in the expected window print it to the stdout
+      fprintf(stderr, "\t\t+client_seq: %u, server_seq: %u\n", client_seq, server_seq);
       add_packet_to_receive_buffer(&p, &receive_buffer, client_seq);
       output_data_buffer(&receive_buffer, &client_seq);
 

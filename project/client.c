@@ -84,12 +84,12 @@ int main(int argc, char **argv)
       // if the response is A+1, and SEQ B, send ACK B+1 to the server
       if (bytes_recvd > 0 && is_syn_packet(&response) && is_ack_packet(&response) && response.ack == client_seq + 1)
       {
-        client_seq += 1;
         server_seq = response.seq + 1;
 
         packet *ack = new_ack_packet(client_seq, server_seq);
         send_packet(sockfd, ack, &server_addr);
 
+        client_seq += 1;
         handshaked = true;
         fprintf(stderr, "Handshake complete\n");
       }
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
             // resend the lowest seq in the buffer
             if (!is_empty(&send_l, &send_r))
               send_packet(sockfd, send_buffer[send_l], &server_addr);
-            last_ack_count = 0; // TODO: not sure 1 or 0
+            last_ack_count = 1; // TODO: not sure 1 or 0
           }
         }
         else

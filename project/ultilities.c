@@ -111,11 +111,12 @@ void send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr)
 {
 	if (p == NULL)
 		return;
-	if (p->length > 0 && rand() % 100 < 10)
-	{
-		fprintf(stderr, "========== Dropping packet =========\n");
-		return;
-	}
+	// simulate packet loss
+	// if (p->length > 0 && rand() % 100 < 10)
+	// {
+	// 	fprintf(stderr, "========== Dropping packet =========\n");
+	// 	return;
+	// }
 	convert_packet_sending_endian(p);
 
 	print_diag(p, SEND);
