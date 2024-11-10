@@ -30,24 +30,25 @@ typedef struct
 {
     uint32_t seq;
     uint16_t length;
-    char data[1024];
+    uint8_t data[MSS];
 } Receive_buffer;
 
-int get_random_seq();
-packet *new_syn_packet(int seq);
-packet *new_ack_packet(int seq, int ack);
+uint32_t get_random_seq();
+packet *new_syn_packet(uint32_t seq);
+packet *new_ack_packet(uint32_t seq, uint32_t ack);
 packet *new_data_packet(uint32_t ack, uint32_t seq, uint16_t length, uint8_t flags, uint8_t *payload);
 int receive_packet(int sockfd, packet *p, struct sockaddr_in *server_addr, socklen_t *s);
 void send_packet(int sockfd, packet *p, struct sockaddr_in *target_addr);
 void convert_packet_receiving_endian(packet *p);
 void convert_packet_sending_endian(packet *p);
-bool is_syn_packet(packet p);
-bool is_ack_packet(packet p);
+bool is_syn_packet(packet *p);
+bool is_ack_packet(packet *p);
 void increment_window(int *ptr);
 void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r);
 void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SIZE], int *send_l, int *send_r);
 void print_data_buffer(Receive_buffer *buffer, int *l, int *r, uint32_t *expected_seq);
 bool is_full(int *l, int *r);
 bool is_empty(int *l, int *r);
+void print_current_buffer(Receive_buffer *buffer, int *l, int *r);
 
 #endif // UTILITIES_H
