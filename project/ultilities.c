@@ -147,46 +147,43 @@ void increment_window(int *ptr)
 	*ptr = (*ptr + 1) % WINDOW_SIZE;
 }
 
-void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r)
+void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer)
 {
-	if (is_full(l, r))
-	{
-		fprintf(stderr, "\t\tBuffer is full\n");
-		return;
-	}
+	Receive_buffer *new_buffer = malloc(sizeof(Receive_buffer));
+	new_buffer->seq = p->seq;
+	new_buffer->length = p->length;
+	new_buffer->next = NULL;
+	memset(new_buffer->data, 0, sizeof(new_buffer->data));
+	memcpy(new_buffer->data, p->payload, p->length);
 
-	for (int i = *l; i != *r; i = (i + 1) % WINDOW_SIZE)
+	Receive_buffer *head = *buffer, *prev = NULL;
+
+	while (head != NULL)
 	{
-		if (buffer[i].seq == p->seq)
+		if (head->seq == p->seq)
 		{
 			fprintf(stderr, "\t\tPacket already in buffer\n");
 			return;
 		}
 
-		if (buffer[i].seq > p->seq)
+		if (head->seq > p->seq)
 		{
-			// insert the packet to the buffer
-			for (int j = *r; j != i; j = (j - 1 + WINDOW_SIZE) % WINDOW_SIZE)
-			{
-				memcpy(&buffer[j], &buffer[(j - 1 + WINDOW_SIZE) % WINDOW_SIZE], sizeof(buffer[j]));
-			}
-
-			buffer[i].seq = p->seq;
-			buffer[i].length = p->length;
-			memcpy(buffer[i].data, p->payload, sizeof(buffer[i].data));
-
-			increment_window(r);
+			new_buffer->next = head;
+			if (prev)
+				prev->next = new_buffer;
+			else // if the new packet is the smallest
+				*buffer = new_buffer;
 			return;
 		}
+		prev = head;
+		head = head->next;
 	}
 
 	// append the packet to the end of the buffer
-	buffer[*r].seq = p->seq;
-	buffer[*r].length = p->length;
-	memset(buffer[*r].data, 0, sizeof(buffer[*r].data));
-	memcpy(buffer[*r].data, p->payload, p->length);
-
-	increment_window(r);
+	if (prev)
+		prev->next = new_buffer;
+	else
+		*buffer = new_buffer;
 }
 
 void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SIZE], int *send_l, int *send_r)
@@ -200,14 +197,17 @@ void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SI
 	}
 }
 
-void print_data_buffer(Receive_buffer *buffer, int *l, int *r, uint32_t *expected_seq)
+void output_data_buffer(Receive_buffer **buffer, uint32_t *expected_seq)
 {
-	while (!is_empty(l, r) && buffer[*l].seq == *expected_seq)
+	while ((*buffer) && (*buffer)->seq == *expected_seq)
 	{
-		fprintf(stderr, "popping %u\n", buffer[*l].seq);
-		write(STDOUT_FILENO, buffer[*l].data, buffer[*l].length);
-		*expected_seq += buffer[*l].length;
-		increment_window(l);
+		fprintf(stderr, "popping %u\n", (*buffer)->seq);
+		write(STDOUT_FILENO, (*buffer)->data, (*buffer)->length);
+		*expected_seq += (*buffer)->length;
+		Receive_buffer *temp = (*buffer);
+		*buffer = (*buffer)->next;
+		free(temp);
+		temp = NULL;
 	}
 }
 
@@ -220,12 +220,14 @@ bool is_empty(int *l, int *r)
 	return *l == *r;
 }
 
-void print_current_buffer(Receive_buffer *buffer, int *l, int *r)
+void debug_receive_buffer(Receive_buffer **buffer)
 {
-	fprintf(stderr, "Buffer: ");
-	for (int i = *l; i != *r; i = (i + 1) % WINDOW_SIZE)
+	fprintf(stderr, "-%u Buffer: ", (*buffer)->seq);
+	Receive_buffer *head = *buffer;
+	while (head != NULL)
 	{
-		fprintf(stderr, "%u ", buffer[i].seq);
+		fprintf(stderr, "%u ", head->seq);
+		head = head->next;
 	}
 	fprintf(stderr, "\n");
 }

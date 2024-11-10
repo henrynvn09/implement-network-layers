@@ -53,8 +53,7 @@ int main(int argc, char **argv)
   packet *send_buffer[WINDOW_SIZE];
   int send_l = 0, send_r = 0;
 
-  Receive_buffer receive_buffer[WINDOW_SIZE];
-  int receive_l = 0, receive_r = 0;
+  Receive_buffer *receive_buffer = NULL;
 
   uint32_t last_ack = 0;
   uint8_t last_ack_count = 0;
@@ -135,8 +134,8 @@ int main(int argc, char **argv)
 
       // place the data in the receive buffer,
       // if the receive seq is in the expected window print it to the stdout
-      add_packet_to_data_buffer(&server_packet, receive_buffer, &receive_l, &receive_r);
-      print_data_buffer(receive_buffer, &receive_l, &receive_r, &server_seq);
+      add_packet_to_receive_buffer(&server_packet, &receive_buffer);
+      output_data_buffer(&receive_buffer, &server_seq);
 
       // send ACK with data to the server if send_buffer is not full
       if (!is_full(&send_l, &send_r))

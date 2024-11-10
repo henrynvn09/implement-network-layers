@@ -26,12 +26,15 @@ typedef struct
     uint8_t payload[MSS];
 } packet;
 
-typedef struct
+typedef struct Receive_buffer Receive_buffer;
+
+struct Receive_buffer
 {
     uint32_t seq;
     uint16_t length;
     uint8_t data[MSS];
-} Receive_buffer;
+    struct Receive_buffer *next;
+};
 
 uint32_t get_random_seq();
 packet *new_syn_packet(uint32_t seq);
@@ -44,11 +47,11 @@ void convert_packet_sending_endian(packet *p);
 bool is_syn_packet(packet *p);
 bool is_ack_packet(packet *p);
 void increment_window(int *ptr);
-void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r);
+void add_packet_to_receive_buffer(packet *p, Receive_buffer **buffer);
 void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SIZE], int *send_l, int *send_r);
-void print_data_buffer(Receive_buffer *buffer, int *l, int *r, uint32_t *expected_seq);
+void output_data_buffer(Receive_buffer **buffer, uint32_t *expected_seq);
 bool is_full(int *l, int *r);
 bool is_empty(int *l, int *r);
-void print_current_buffer(Receive_buffer *buffer, int *l, int *r);
+void debug_receive_buffer(Receive_buffer **buffer);
 
 #endif // UTILITIES_H
