@@ -6,6 +6,8 @@
 #define RTOS 2
 #define DUPA 3
 
+uint32_t sent_counter = 0;
+
 static inline void print_diag(packet *pkt, int diag)
 {
 	switch (diag)
@@ -14,7 +16,9 @@ static inline void print_diag(packet *pkt, int diag)
 		fprintf(stderr, "- RECV");
 		break;
 	case SEND:
-		fprintf(stderr, "- SEND");
+		sent_counter++;
+		fprintf(stderr, "%u - SEND", sent_counter);
+		// fprintf(stderr, " - SEND");
 		break;
 	case RTOS:
 		fprintf(stderr, "- RTOS");
@@ -83,7 +87,7 @@ packet *new_data_packet(uint32_t ack, uint32_t seq, uint16_t length, uint8_t fla
 	p->length = length;
 	p->flags = flags;
 	p->unused = 0;
-	memset(p->payload, 0, MSS);
+	memset(p->payload, 0, sizeof(p->payload));
 	memcpy(p->payload, payload, length);
 
 	return p;
@@ -147,7 +151,7 @@ void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r
 {
 	if (is_full(l, r))
 	{
-		printf("\t\tBuffer is full\n");
+		fprintf(stderr, "\t\tBuffer is full\n");
 		return;
 	}
 
@@ -155,7 +159,7 @@ void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r
 	{
 		if (buffer[i].seq == p->seq)
 		{
-			printf("\t\tPacket already in buffer\n");
+			fprintf(stderr, "\t\tPacket already in buffer\n");
 			return;
 		}
 
@@ -164,12 +168,12 @@ void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r
 			// insert the packet to the buffer
 			for (int j = *r; j != i; j = (j - 1 + WINDOW_SIZE) % WINDOW_SIZE)
 			{
-				memcpy(&buffer[j], &buffer[(j - 1 + WINDOW_SIZE) % WINDOW_SIZE], sizeof(Receive_buffer));
+				memcpy(&buffer[j], &buffer[(j - 1 + WINDOW_SIZE) % WINDOW_SIZE], sizeof(buffer[j]));
 			}
 
 			buffer[i].seq = p->seq;
 			buffer[i].length = p->length;
-			memcpy(buffer[i].data, p->payload, p->length);
+			memcpy(buffer[i].data, p->payload, sizeof(buffer[i].data));
 
 			increment_window(r);
 			return;
@@ -179,7 +183,7 @@ void add_packet_to_data_buffer(packet *p, Receive_buffer *buffer, int *l, int *r
 	// append the packet to the end of the buffer
 	buffer[*r].seq = p->seq;
 	buffer[*r].length = p->length;
-	memset(buffer[*r].data, 0, MSS);
+	memset(buffer[*r].data, 0, sizeof(buffer[*r].data));
 	memcpy(buffer[*r].data, p->payload, p->length);
 
 	increment_window(r);
@@ -190,7 +194,6 @@ void remove_acked_sent_buffer(uint32_t server_ack, packet *send_buffer[WINDOW_SI
 	// iterate through sent buffer to remove SEQ less than ACK
 	while (!is_empty(send_l, send_r) && send_buffer[*send_l]->seq < server_ack)
 	{
-		printf("\t\t+removing send buf %u\n", send_buffer[*send_l]->seq);
 		free(send_buffer[*send_l]);
 		send_buffer[*send_l] = NULL;
 		increment_window(send_l);
@@ -201,7 +204,7 @@ void print_data_buffer(Receive_buffer *buffer, int *l, int *r, uint32_t *expecte
 {
 	while (!is_empty(l, r) && buffer[*l].seq == *expected_seq)
 	{
-		printf("\t\t+popping %u\n", buffer[*l].seq);
+		fprintf(stderr, "popping %u\n", buffer[*l].seq);
 		write(STDOUT_FILENO, buffer[*l].data, buffer[*l].length);
 		*expected_seq += buffer[*l].length;
 		increment_window(l);
@@ -219,10 +222,10 @@ bool is_empty(int *l, int *r)
 
 void print_current_buffer(Receive_buffer *buffer, int *l, int *r)
 {
-	printf("Buffer: ");
+	fprintf(stderr, "Buffer: ");
 	for (int i = *l; i != *r; i = (i + 1) % WINDOW_SIZE)
 	{
-		printf("%u ", buffer[i].seq);
+		fprintf(stderr, "%u ", buffer[i].seq);
 	}
-	printf("\n");
+	fprintf(stderr, "\n");
 }

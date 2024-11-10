@@ -63,14 +63,14 @@ int main(int argc, char **argv)
 
   // send a random SEQ A with SYN flag to the server
   uint32_t client_seq = get_random_seq();
-  printf("Client SEQ: %u\n", client_seq);
+  fprintf(stderr, "Client SEQ: %u\n", client_seq);
   packet *first_SYN = new_syn_packet(client_seq);
   send_packet(sockfd, first_SYN, &server_addr);
   // free(first_SYN);
 
   // Timer to resend the lowest seq if no new ACK in 1 second
-  struct timeval last_sent_time;
-  gettimeofday(&last_sent_time, NULL);
+  struct timeval last_ack_time;
+  gettimeofday(&last_ack_time, NULL);
   struct timeval time_diff;
 
   // Listen loop
@@ -92,7 +92,7 @@ int main(int argc, char **argv)
         send_packet(sockfd, ack, &server_addr);
 
         handshaked = true;
-        printf("Handshake complete\n");
+        fprintf(stderr, "Handshake complete\n");
       }
       continue;
     }
@@ -103,12 +103,12 @@ int main(int argc, char **argv)
     int bytes_recvd = receive_packet(sockfd, &server_packet, &server_addr, &s);
     if (bytes_recvd > 0)
     {
-      // printf("client_seq: %u, server_seq: %u\n", client_seq, server_seq);
+      // fprintf(stderr, "client_seq: %u, server_seq: %u\n", client_seq, server_seq);
       // if the response is ACK, mark the data as received
       if (is_ack_packet(&server_packet))
       {
         remove_acked_sent_buffer(server_packet.ack, send_buffer, &send_l, &send_r);
-
+        gettimeofday(&last_ack_time, NULL);
         // if last 3 ACKs are the same, resend the lowest seq in the buffer
         if (last_ack == server_packet.ack)
         {
@@ -116,7 +116,6 @@ int main(int argc, char **argv)
           if (last_ack_count == 3)
           {
             // resend the lowest seq in the buffer
-
             if (!is_empty(&send_l, &send_r))
               send_packet(sockfd, send_buffer[send_l], &server_addr);
             last_ack_count = 0; // TODO: not sure 1 or 0
@@ -142,7 +141,7 @@ int main(int argc, char **argv)
       // send ACK with data to the server if send_buffer is not full
       if (!is_full(&send_l, &send_r))
       {
-        printf("send data to the server with ack\n");
+        fprintf(stderr, "send data to the server with ack\n");
         int bytes_read = read(STDIN_FILENO, &buffer, sizeof(buffer));
         if (bytes_read > 0)
         {
@@ -158,18 +157,18 @@ int main(int argc, char **argv)
         }
         else
         { // Otherwise, send an ACK with no data
-          printf("send ack to the server with no data\n");
+          fprintf(stderr, "send ack to the server with no data\n");
           packet *ack = new_ack_packet(client_seq, server_seq);
           send_packet(sockfd, ack, &server_addr);
         }
       }
       else
       { // Otherwise, send an ACK with no data
-        printf("send ack to the server with no data\n");
+        fprintf(stderr, "send ack to the server with no data\n");
         packet *ack = new_ack_packet(client_seq, server_seq);
         send_packet(sockfd, ack, &server_addr);
       }
-      // printf("client_seq: %u, server_seq: %u\n", client_seq, server_seq);
+      // fprintf(stderr, "client_seq: %u, server_seq: %u\n", client_seq, server_seq);
     }
     //* ===== send data from stdin if there is window is not full
     else if (!is_full(&send_l, &send_r))
@@ -191,13 +190,13 @@ int main(int argc, char **argv)
     struct timeval current_time;
     gettimeofday(&current_time, NULL);
     struct timeval time_diff;
-    timersub(&current_time, &last_sent_time, &time_diff);
+    timersub(&current_time, &last_ack_time, &time_diff);
 
     if (time_diff.tv_usec >= 1e6)
     {
       if (!is_empty(&send_l, &send_r))
         send_packet(sockfd, send_buffer[send_l], &server_addr);
-      gettimeofday(&last_sent_time, NULL);
+      gettimeofday(&last_ack_time, NULL);
     }
   }
 
